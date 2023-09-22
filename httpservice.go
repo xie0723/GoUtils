@@ -1,7 +1,9 @@
 package GoUtils
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
 type HttpService struct {
@@ -32,7 +36,10 @@ var defaultHeaders = map[string]string{
 // 每个http.Transport内都会维护一个自己的空闲连接池，如果每个client都创建一个新的http.Transport，就会导致底层的TCP连接无法复用。
 // 如果网络请求过大，上面这种情况会导致协程数量变得非常多，导致服务不稳定。
 // 为了解决这个问题，我们可以将http.Transport对象设置为全局变量，这样就可以复用连接池了。
-var tr = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //忽略https证书
+var tr = &http.Transport{
+	TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //忽略https证书
+	MaxIdleConnsPerHost: 2000,
+}
 
 type KwArgs func(apiOptions *HttpService)
 
@@ -82,9 +89,8 @@ func (hs *HttpService) IsPrintReq(isEchoReq bool) *HttpService {
 }
 
 func (hs *HttpService) DoHttpRequest(method, url, body string, kwargs ...KwArgs) (string, error) {
-	startTime := time.Now() // 请求开始时间
 	client := hs.BuildClient()
-	req, err := hs.BuildRequest(method, url, body) // 构造请求对象,包含method url body信息
+	req, err := hs.BuildRequest(method, url, body) // 1. 构造请求对象,包含method url body信息
 	if err != nil {
 		return "", err
 	}
@@ -96,16 +102,17 @@ func (hs *HttpService) DoHttpRequest(method, url, body string, kwargs ...KwArgs)
 	}
 
 	if len(hs.Headers) > 0 {
-		hs.BuildRequestHeaders(hs.ReqObj, hs.Headers) // 构造请求头
+		hs.BuildRequestHeaders(hs.ReqObj, hs.Headers) // 2. 构造请求头
 	} else {
-		hs.BuildRequestHeaders(hs.ReqObj, defaultHeaders) // 构造请求头
+		hs.BuildRequestHeaders(hs.ReqObj, defaultHeaders) // 2. 构造请求头
 	}
-
-	respObj, err := client.Do(hs.ReqObj) // 发出请求
+	startTime := time.Now()              // 请求开始时间
+	respObj, err := client.Do(hs.ReqObj) // 3. 发出请求
 	hs.RespObj = respObj
-	elapsed := time.Since(startTime).Nanoseconds() / int64(time.Millisecond)
+	elapsed := time.Since(startTime).Nanoseconds() / int64(time.Millisecond) // 毫秒
+	hs.CostTime = elapsed                                                    // 请求耗时绑定在实例属性上
 	if hs.IsEchoReq {
-		hs.PrintReqInfo(hs.ReqObj) // 打印请求信息
+		hs.PrintReqInfo(hs.ReqObj) // 4. 打印请求信息
 	}
 	if err != nil {
 		log.Printf("[请求出错] %s\n", err)
@@ -113,7 +120,7 @@ func (hs *HttpService) DoHttpRequest(method, url, body string, kwargs ...KwArgs)
 		return "", err
 	}
 	defer respObj.Body.Close()
-	content, err := io.ReadAll(respObj.Body) // 返回二进制的内容
+	content, err := io.ReadAll(respObj.Body) // 5. 返回二进制的内容
 	hs.Content = content
 	if err != nil {
 		log.Printf("[获取响应内容出错]%s\n", err)
@@ -167,4 +174,21 @@ func (hs *HttpService) PrintRespInfo(resInfo []byte, costTime int64) *HttpServic
 		formatCostTime) + fmt.Sprintf("\n    [响应Body]：%s", r)
 	fmt.Println(s)
 	return hs
+}
+
+func (hs *HttpService) PrettyPrint(resInfo []byte) (string, error) {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, resInfo, "", " "); err != nil {
+		return string(resInfo), err
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
+}
+
+func (hs *HttpService) Map2String(body map[string]interface{}) string {
+	return Map2JsonString(body)
+}
+
+// Json 使用方法参考https://github.com/tidwall/gjson
+func (hs *HttpService) Json() gjson.Result {
+	return gjson.Parse(hs.Text)
 }
