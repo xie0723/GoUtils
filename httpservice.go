@@ -25,6 +25,7 @@ type HttpService struct {
 	Text      string // 响应内容字符串
 	Content   []byte // 响应内容字节
 	IsEchoReq bool   // 是否打印请求信息
+	isDebug   bool   // 是否打印请求和结果信息
 
 	Error error
 }
@@ -41,11 +42,16 @@ var tr = &http.Transport{
 	MaxIdleConnsPerHost: 2000,
 }
 
-type KwArgs func(apiOptions *HttpService)
+type KwArgs func(hs *HttpService)
 
 func WithHeaders(headers map[string]string) KwArgs {
 	return func(hs *HttpService) {
 		hs.Headers = headers
+	}
+}
+func WithDebug(debug bool) KwArgs {
+	return func(hs *HttpService) {
+		hs.isDebug = debug
 	}
 }
 
@@ -64,7 +70,13 @@ func NewHttpService() *HttpService {
 }
 
 func (hs *HttpService) Get(url, data string, kwargs ...KwArgs) *http.Response {
-	text, err := hs.DoHttpRequest("GET", url, data, kwargs...)
+	var newUrl string
+	if len(data) > 0 {
+		newUrl = fmt.Sprintf("%s?%s", url, data)
+	} else {
+		newUrl = url
+	}
+	text, err := hs.DoHttpRequest("GET", newUrl, "", kwargs...)
 	hs.Error = err
 	hs.Text = text
 	if err != nil {
@@ -74,7 +86,6 @@ func (hs *HttpService) Get(url, data string, kwargs ...KwArgs) *http.Response {
 }
 
 func (hs *HttpService) Post(url, json string, kwargs ...KwArgs) *http.Response {
-	//body := Map2JsonString(json)
 	text, err := hs.DoHttpRequest("POST", url, json, kwargs...)
 	hs.Text = text
 	if err != nil {
@@ -111,7 +122,7 @@ func (hs *HttpService) DoHttpRequest(method, url, body string, kwargs ...KwArgs)
 	hs.RespObj = respObj
 	elapsed := time.Since(startTime).Nanoseconds() / int64(time.Millisecond) // 毫秒
 	hs.CostTime = elapsed                                                    // 请求耗时绑定在实例属性上
-	if hs.IsEchoReq {
+	if hs.IsEchoReq || hs.isDebug {
 		hs.PrintReqInfo(hs.ReqObj) // 4. 打印请求信息
 	}
 	if err != nil {
@@ -128,7 +139,9 @@ func (hs *HttpService) DoHttpRequest(method, url, body string, kwargs ...KwArgs)
 		hs.PrintRespInfo(content, elapsed) // 打印结果信息
 		return "", err
 	}
-	//hs.PrintRespInfo(content, elapsed) // 打印结果信息
+	if hs.isDebug {
+		hs.PrintRespInfo(content, elapsed) // 打印结果信息
+	}
 	return string(content), nil
 }
 
@@ -191,4 +204,12 @@ func (hs *HttpService) Map2String(body map[string]interface{}) string {
 // Json 使用方法参考https://github.com/tidwall/gjson
 func (hs *HttpService) Json() gjson.Result {
 	return gjson.Parse(hs.Text)
+}
+
+func Map2UrlValues(m map[string]interface{}) string {
+	values := url.Values{}
+	for k, v := range m {
+		values.Add(k, fmt.Sprintf("%v", v))
+	}
+	return values.Encode()
 }
