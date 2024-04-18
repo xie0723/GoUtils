@@ -220,3 +220,31 @@ func Map2UrlValues(m map[string]interface{}) string {
 	}
 	return values.Encode()
 }
+
+// DoRequest 简洁版本
+func DoRequest(method string, url string, requestBody []byte, requestHeaders map[string]string) (int, http.Header, string, error) {
+	// 创建请求
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return 0, nil, "", fmt.Errorf("创建请求失败: %v", err)
+	}
+	for key, value := range requestHeaders {
+		req.Header.Set(key, value)
+	}
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, nil, "", fmt.Errorf("发送请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 处理响应
+	responseBody := new(bytes.Buffer)
+	_, err = responseBody.ReadFrom(resp.Body)
+	if err != nil {
+		return resp.StatusCode, resp.Header, "", fmt.Errorf("读取响应结果失败: %v", err)
+	}
+	return resp.StatusCode, resp.Header, responseBody.String(), nil
+}

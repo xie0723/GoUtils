@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/gorilla/websocket"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func main() {
