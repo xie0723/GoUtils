@@ -39,7 +39,10 @@ var defaultHeaders = map[string]string{
 // 为了解决这个问题，我们可以将http.Transport对象设置为全局变量，这样就可以复用连接池了。
 var tr = &http.Transport{
 	TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //忽略https证书
-	MaxIdleConnsPerHost: 2000,
+	MaxIdleConnsPerHost: 2000,                                  //
+	TLSHandshakeTimeout: 0 * time.Second,                       // 表示TLS 握手超时时间。这里推荐传入一个非零值0, 表示无限制
+	IdleConnTimeout:     600 * time.Second,                     // 表示一个连接在空闲多久之后关闭。。这里推荐传入一个非零值0, 表示无限制
+	MaxIdleConns:        0,                                     // 表示客户端对与所有host的最大空闲连接数总和。这里推荐传入一个非零值0, 表示无限制
 }
 
 type KwArgs func(hs *HttpService)
@@ -204,6 +207,10 @@ func (hs *HttpService) Map2String(body map[string]interface{}) string {
 // Json 使用方法参考https://github.com/tidwall/gjson
 func (hs *HttpService) Json() gjson.Result {
 	return gjson.Parse(hs.Text)
+}
+
+func (hs *HttpService) Success() bool {
+	return hs.RespObj.StatusCode == 200
 }
 
 func Map2UrlValues(m map[string]interface{}) string {
