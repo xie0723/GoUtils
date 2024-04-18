@@ -2,9 +2,10 @@ package GoUtils
 
 import (
 	"fmt"
-	"github.com/lxzan/gws"
 	"sync"
 	"time"
+
+	"github.com/lxzan/gws"
 )
 
 var logger = InitLogger()
