@@ -35,3 +35,10 @@ func FmtStr2TimeStamp(timeStr string) int64 {
 	timeObj, _ := time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 	return timeObj.Unix()
 }
+
+// Utc2Local utc时间转为本地时间
+func Utc2Local(utcTimeStr string) string {
+	utcTime, _ := time.ParseInLocation("2006-01-02 15:04:05", utcTimeStr, time.UTC)
+	localTime := utcTime.Add(8 * time.Hour)
+	return localTime.Format("2006-01-02 15:04:05")
+}

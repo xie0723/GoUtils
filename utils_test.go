@@ -28,3 +28,7 @@ func TestTimeStamp2FmtStr(t *testing.T) {
 func TestFmtStr2TimeStamp(t *testing.T) {
 	fmt.Println(FmtStr2TimeStamp("2020-01-01 10:00:00"))
 }
+
+func TestCreateGwsClients(t *testing.T) {
+	fmt.Println(Utc2Local("2024-04-29 05:29:25"))
+}
